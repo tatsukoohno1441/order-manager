@@ -30,26 +30,52 @@ process_logs = []
 tab1, tab2 = st.tabs(["🔍 订单查询", "📥 数据同步"])
 
 # --- 标签页 1: 订单查询 ---
+# --- 标签页 1: 订单查询 ---
 with tab1:
-    st.subheader("快速搜索订单")
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        search_query = st.text_input("输入 注文番号 / 届け先氏名 / 届け先ＴＥＬ 进行搜索")
+    st.subheader("🕵️ 多条件精准搜索")
+    st.caption("支持模糊搜索，填写的条件越多，结果越精准。留空则表示不限制该条件。")
     
-    if search_query:
-        # 执行数据库搜索
-        response = supabase.table("orders").select("*").or_(
-            f"注文番号.ilike.%{search_query}%,届け先氏名.ilike.%{search_query}%,届け先ＴＥＬ.ilike.%{search_query}%"
-        ).execute()
+    # 用多列布局把搜索框排整齐
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        s_order_no = st.text_input("注文番号 (部分一致)")
+        s_tel = st.text_input("届け先ＴＥＬ (部分一致)")
+    with c2:
+        s_name = st.text_input("届け先氏名 (部分一致)")
+        s_delivery_no = st.text_input("配送番号 (部分一致)")
+    with c3:
+        s_jan = st.text_input("JANコード")
+        s_date = st.text_input("発送日 (如: 2026-04)")
+
+    if st.button("🔍 开始搜索", use_container_width=True):
+        # 1. 启动基础查询
+        query = supabase.table("orders").select("*")
+        
+        # 2. 动态添加过滤条件 (如果有填写内容，才加入查询)
+        if s_order_no:
+            query = query.ilike("注文番号", f"%{s_order_no}%")
+        if s_name:
+            query = query.ilike("届け先氏名", f"%{s_name}%")
+        if s_tel:
+            query = query.ilike("届け先ＴＥＬ", f"%{s_tel}%")
+        if s_delivery_no:
+            query = query.ilike("配送番号", f"%{s_delivery_no}%")
+        if s_jan:
+            query = query.ilike("JANコード", f"%{s_jan}%")
+        if s_date:
+            query = query.ilike("発送日", f"%{s_date}%")
+            
+        # 3. 执行查询
+        response = query.execute()
         
         if response.data:
             df_res = pd.DataFrame(response.data)
-            # 隐藏内部 ID 列
+            # 整理显示顺序
             cols_to_show = [c for c in df_res.columns if c not in ['id', 'created_at']]
+            st.success(f"找到 {len(response.data)} 条符合条件的订单")
             st.dataframe(df_res[cols_to_show], use_container_width=True)
-            st.success(f"找到 {len(response.data)} 条匹配记录")
         else:
-            st.warning("没有找到匹配的订单。")
+            st.warning("没找到符合这些组合条件的订单，请尝试减少一些限制。")
 
 # --- 标签页 2: 数据同步 ---
 with tab2:
