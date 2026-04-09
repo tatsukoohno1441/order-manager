@@ -5,7 +5,7 @@ import io
 import datetime
 
 # 1. 页面配置
-st.set_page_config(page_title="订单查询与售后系统", page_icon="🔍", layout="wide")
+st.set_page_config(page_title="オーダー検索システム🔍", page_icon="🔍", layout="wide")
 
 # 2. 连接 Supabase
 url = st.secrets["SUPABASE_URL"]
@@ -15,29 +15,29 @@ supabase: Client = create_client(url, key)
 # --- 检查连接状态 ---
 try:
     supabase.table("orders").select("id").limit(1).execute()
-    db_status = "✅ 数据库连接正常"
+    db_status = "✅ データベースエラーなし"
 except Exception as e:
-    db_status = f"❌ 数据库连接异常: {e}"
+    db_status = f"❌ データベースエラー: {e}"
 
-st.title("订单查询与售后管理系统 🧡")
+st.title("オーダー検索システム 🧡")
 st.caption(db_status)
 
 # 创建标签页
-tab1, tab2 = st.tabs(["🔍 订单查询", "📥 数据同步"])
+tab1, tab2 = st.tabs(["🔍 オーダー検索", "📥 データアップロード"])
 
 # --- 标签页 1: 订单查询 ---
 with tab1:
-    st.subheader("🕵️ 多维度售后精准搜索")
-    st.caption("支持部分一致搜索（模糊匹配）。留空表示不限制。")
+    st.subheader("オーダー検索")
+    st.caption("部分一致搜索OK")
 
     # 日期选择：默认当天
     col_date, col_check = st.columns([2, 1])
     with col_date:
-        s_date_obj = st.date_input("📅 発送日 (选择日期)", value=datetime.date.today())
+        s_date_obj = st.date_input("📅 発送日", value=datetime.date.today())
         # 自动适配常见的日期格式
         s_date_str = s_date_obj.strftime("%Y/%m/%d")
     with col_check:
-        use_date = st.checkbox("启用日期筛选", value=True)
+        use_date = st.checkbox("発送日検索", value=False)
 
     st.divider()
 
@@ -97,13 +97,12 @@ with tab1:
             st.success(f"找到 {len(response.data)} 条订单")
             st.dataframe(df_res[cols_to_show], use_container_width=True)
         else:
-            st.warning("没有找到匹配订单。")
+            st.warning("一致する注文なし")
 
 # --- 标签页 2: 数据同步 ---
 with tab2:
-    st.subheader("同步每日订单到数据库")
-    st.info("处理完发货后，将最终的 CSV 上传，即可永久保存至数据库。")
-    uploaded_file = st.file_uploader("选择要导入的 CSV 文件", type="csv")
+    st.subheader("CSVフェイルをデータベースにアップロード")
+    uploaded_file = st.file_uploader("CSVフェイルを選択", type="csv")
     
     if uploaded_file:
         try:
@@ -124,10 +123,10 @@ with tab2:
                     '届け先住所２': '住所2'
                 })
                 df_upload = df_upload.fillna("")
+
+                st.write(f"📂 アップロード注文データ: {len(df_upload)} 行")
                 
-                st.write(f"📂 待上传数据: {len(df_upload)} 行")
-                
-                if st.button("🚀 开始同步到数据库"):
+                if st.button("🚀 アップロード"):
                     data_to_insert = df_upload.to_dict(orient='records')
                     
                     # 使用进度条，让等待不再无聊
@@ -148,4 +147,4 @@ with tab2:
             st.error(f"同步失败: {e}")
 
 st.divider()
-st.caption("售后管理系统")
+st.caption("オーダー検索システム")
