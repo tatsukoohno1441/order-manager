@@ -58,7 +58,7 @@ with tab1:
         s_addr1 = st.text_input("届け先住所1") # 对应数据库中的 住所1
         s_addr2 = st.text_input("届け先住所2") # 对应数据库中的 住所2
 
-    if st.button("🔍 执行组合搜索", use_container_width=True):
+    if st.button("🔍 検索", use_container_width=True):
         query = supabase.table("orders").select("*")
         
         # 动态添加过滤条件 (模糊匹配)
