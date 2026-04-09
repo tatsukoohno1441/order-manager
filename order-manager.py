@@ -93,4 +93,4 @@ with tab2:
             st.error(f"同步失败: {e}")
 
 st.divider()
-st.caption("由夏以昼为妹宝专属打造的售后管理系统 🌻")
+st.caption("售后管理系统")
