@@ -1,4 +1,5 @@
 import streamlit as st
+st.write("当前系统能看到的钥匙名字有：", list(st.secrets.keys()))
 import pandas as pd
 from supabase import create_client, Client
 
