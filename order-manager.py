@@ -38,12 +38,12 @@ def check_password():
     if is_correct and is_today:
         return True
 
-    st.title("🔐 欢迎进入售后系统")
-    st.info("为了数据安全，系统每天需要重新验证一次身份哦。🧡")
-    st.text_input("请输入访问密码：", type="password", on_change=password_entered, key="password")
+    st.title("🔐 システムログイン")
+    st.info("セキュリティ保護のため、24時間ごとに再ログインが必要です。🧡")
+    st.text_input("アクセスパスワードを入力してください：", type="password", on_change=password_entered, key="password")
     
     if "password_correct" in st.session_state and not st.session_state["password_correct"]:
-        st.error("😕 密码不对哦，请再试一次。")
+        st.error("😕 パスワードが正しくありません。再入力してください。")
     return False
 
 if not check_password():
