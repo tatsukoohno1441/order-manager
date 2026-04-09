@@ -1,8 +1,8 @@
 import streamlit as st
-import datetime  # 在代码最顶端加上这一行
 import pandas as pd
 from supabase import create_client, Client
 import io
+import datetime
 
 # 1. 页面配置
 st.set_page_config(page_title="订单查询与售后系统", page_icon="🔍", layout="wide")
@@ -12,20 +12,15 @@ url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
-# --- 【显形测试：检查数据库连接状态】 ---
-# 这段代码会自动运行，帮你确认程序是否真的看到了 orders 表
+# --- 检查连接状态 ---
 try:
-    # 尝试读取 1 条数据来测试连接
-    test_res = supabase.table("orders").select("id").limit(1).execute()
+    supabase.table("orders").select("id").limit(1).execute()
     db_status = "✅ 数据库连接正常"
 except Exception as e:
     db_status = f"❌ 数据库连接异常: {e}"
 
 st.title("订单查询与售后管理系统 🧡")
-st.caption(db_status) # 在标题下面显示连接状态
-
-# 初始化日志列表 (修复之前的 NameError)
-process_logs = []
+st.caption(db_status)
 
 # 创建标签页
 tab1, tab2 = st.tabs(["🔍 订单查询", "📥 数据同步"])
@@ -33,46 +28,42 @@ tab1, tab2 = st.tabs(["🔍 订单查询", "📥 数据同步"])
 # --- 标签页 1: 订单查询 ---
 with tab1:
     st.subheader("🕵️ 多维度售后精准搜索")
-    st.caption("填写条件进行筛选，留空则不限制该项。支持部分一致搜索。")
+    st.caption("支持部分一致搜索（模糊匹配）。留空表示不限制。")
 
-    # 1. 顶部日期选择：默认当天
+    # 日期选择：默认当天
     col_date, col_check = st.columns([2, 1])
     with col_date:
         s_date_obj = st.date_input("📅 発送日 (选择日期)", value=datetime.date.today())
-        # 将日期转换为字符串，这里格式要和你上传的CSV日期格式一致（比如 2026/04/09 或 2026-04-09）
-        s_date = s_date_obj.strftime("%Y/%m/%d") 
+        # 自动适配常见的日期格式
+        s_date_str = s_date_obj.strftime("%Y/%m/%d")
     with col_check:
         use_date = st.checkbox("启用日期筛选", value=True)
 
     st.divider()
 
-    # 2. 其他 10 个属性的搜索框，分三列排布
+    # 11个属性分三列排布
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         s_order_no = st.text_input("注文番号")
         s_name = st.text_input("届け先氏名")
         s_tel = st.text_input("届け先ＴＥＬ")
         s_zip = st.text_input("届け先郵便番号")
-        
     with c2:
         s_delivery_no = st.text_input("配送番号")
         s_jan = st.text_input("JANコード")
         s_sku = st.text_input("商品コード")
         s_pref = st.text_input("届け先都道府県")
-
     with c3:
         s_prod_name = st.text_input("商品名")
-        s_addr1 = st.text_input("届け先住所１")
-        s_addr2 = st.text_input("届け先住所２")
+        s_addr1 = st.text_input("届け先住所1") # 对应数据库中的 住所1
+        s_addr2 = st.text_input("届け先住所2") # 对应数据库中的 住所2
 
     if st.button("🔍 执行组合搜索", use_container_width=True):
-        # 启动基础查询
         query = supabase.table("orders").select("*")
         
-        # 动态添加过滤条件
+        # 动态添加过滤条件 (模糊匹配)
         if use_date:
-            query = query.ilike("発送日", f"%{s_date}%")
+            query = query.ilike("発送日", f"%{s_date_str}%")
         if s_order_no:
             query = query.ilike("注文番号", f"%{s_order_no}%")
         if s_name:
@@ -84,9 +75,10 @@ with tab1:
         if s_pref:
             query = query.ilike("届け先都道府県", f"%{s_pref}%")
         if s_addr1:
-            query = query.ilike("届け先住所１", f"%{s_addr1}%")
+            # 注意：这里的列名必须和 SQL 修改后的名字一致
+            query = query.ilike("住所1", f"%{s_addr1}%")
         if s_addr2:
-            query = query.ilike("届け先住所２", f"%{s_addr2}%")
+            query = query.ilike("住所2", f"%{s_addr2}%")
         if s_delivery_no:
             query = query.ilike("配送番号", f"%{s_delivery_no}%")
         if s_jan:
@@ -96,20 +88,16 @@ with tab1:
         if s_prod_name:
             query = query.ilike("商品名", f"%{s_prod_name}%")
             
-        # 执行查询
         response = query.execute()
         
         if response.data:
             df_res = pd.DataFrame(response.data)
-            # 隐藏内部列，按照你想要的顺序排列（如果需要的话）
-            display_cols = ["発送日", "注文番号", "届け先氏名", "届け先ＴＥＬ", "配送番号", "商品名", "处理备注"] 
-            # 如果你想显示全部 11 个属性，也可以直接用下面这行
+            # 整理显示列（隐藏内部ID）
             cols_to_show = [c for c in df_res.columns if c not in ['id', 'created_at']]
-            
-            st.success(f"找到 {len(response.data)} 条符合条件的订单")
+            st.success(f"找到 {len(response.data)} 条订单")
             st.dataframe(df_res[cols_to_show], use_container_width=True)
         else:
-            st.warning("没找到符合条件的订单。")
+            st.warning("没有找到匹配订单。")
 
 # --- 标签页 2: 数据同步 ---
 with tab2:
@@ -129,7 +117,14 @@ with tab2:
                 except: continue
             
             if detected_df is not None:
-                df_upload = detected_df.fillna("")
+                # 【核心修改点】：在这里加入重命名逻辑
+                # 它会自动把 CSV 里的旧名字映射到数据库的新名字
+                df_upload = detected_df.rename(columns={
+                    '届け先住所１': '住所1',
+                    '届け先住所２': '住所2'
+                })
+                df_upload = df_upload.fillna("")
+                
                 st.write(f"📂 待上传数据: {len(df_upload)} 行")
                 
                 if st.button("🚀 开始同步到数据库"):
