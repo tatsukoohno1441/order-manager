@@ -64,6 +64,7 @@ with tab1:
     with c3:
         s_prod_name = st.text_input("商品名")
         s_addr1 = st.text_input("届け先住所１")
+        s_addr2 = st.text_input("届け先住所２")
 
     if st.button("🔍 执行组合搜索", use_container_width=True):
         # 启动基础查询
@@ -84,6 +85,8 @@ with tab1:
             query = query.ilike("届け先都道府県", f"%{s_pref}%")
         if s_addr1:
             query = query.ilike("届け先住所１", f"%{s_addr1}%")
+        if s_addr2:
+            query = query.ilike("届け先住所２", f"%{s_addr2}%")
         if s_delivery_no:
             query = query.ilike("配送番号", f"%{s_delivery_no}%")
         if s_jan:
