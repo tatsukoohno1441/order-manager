@@ -19,6 +19,37 @@ try:
 except Exception as e:
     db_status = f"❌ データベースエラー: {e}"
 
+# --- 🔒 登录门禁 (插入在原本的第 21 行位置) ---
+def check_password():
+    """只有当天登录过且密码正确才返回 True"""
+    def password_entered():
+        if st.session_state["password"] == st.secrets["LOGIN_PASSWORD"]:
+            st.session_state["password_correct"] = True
+            # 记录今天的日期，实现每日刷新的效果
+            st.session_state["login_date"] = datetime.date.today().isoformat()
+            del st.session_state["password"]
+        else:
+            st.session_state["password_correct"] = False
+
+    is_correct = st.session_state.get("password_correct", False)
+    login_date = st.session_state.get("login_date", "")
+    is_today = (login_date == datetime.date.today().isoformat())
+
+    if is_correct and is_today:
+        return True
+
+    st.title("🔐 欢迎进入售后系统")
+    st.info("为了数据安全，系统每天需要重新验证一次身份哦。🧡")
+    st.text_input("请输入访问密码：", type="password", on_change=password_entered, key="password")
+    
+    if "password_correct" in st.session_state and not st.session_state["password_correct"]:
+        st.error("😕 密码不对哦，请再试一次。")
+    return False
+
+if not check_password():
+    st.stop()  # 没通过就停在这里，不显示后面的内容
+# ------------------------------------------
+
 st.title("オーダー検索システム 🧡")
 st.caption(db_status)
 
