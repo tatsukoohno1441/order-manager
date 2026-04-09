@@ -1,17 +1,30 @@
 import streamlit as st
-st.write("当前系统能看到的钥匙名字有：", list(st.secrets.keys()))
 import pandas as pd
 from supabase import create_client, Client
+import io
 
 # 1. 页面配置
 st.set_page_config(page_title="订单查询与售后系统", page_icon="🔍", layout="wide")
 
-# 2. 连接 Supabase (从 Secrets 中读取钥匙)
+# 2. 连接 Supabase
 url = st.secrets["SUPABASE_URL"]
 key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
+# --- 【显形测试：检查数据库连接状态】 ---
+# 这段代码会自动运行，帮你确认程序是否真的看到了 orders 表
+try:
+    # 尝试读取 1 条数据来测试连接
+    test_res = supabase.table("orders").select("id").limit(1).execute()
+    db_status = "✅ 数据库连接正常"
+except Exception as e:
+    db_status = f"❌ 数据库连接异常: {e}"
+
 st.title("订单查询与售后管理系统 🧡")
+st.caption(db_status) # 在标题下面显示连接状态
+
+# 初始化日志列表 (修复之前的 NameError)
+process_logs = []
 
 # 创建标签页
 tab1, tab2 = st.tabs(["🔍 订单查询", "📥 数据同步"])
@@ -25,43 +38,57 @@ with tab1:
     
     if search_query:
         # 执行数据库搜索
-        # 使用 or 逻辑同时搜索多个字段
         response = supabase.table("orders").select("*").or_(
             f"注文番号.ilike.%{search_query}%,届け先氏名.ilike.%{search_query}%,届け先ＴＥＬ.ilike.%{search_query}%"
         ).execute()
         
         if response.data:
             df_res = pd.DataFrame(response.data)
-            # 隐藏不需要显示的内部 ID
+            # 隐藏内部 ID 列
             cols_to_show = [c for c in df_res.columns if c not in ['id', 'created_at']]
             st.dataframe(df_res[cols_to_show], use_container_width=True)
-            process_logs.append(f"✅ 找到 {len(response.data)} 条匹配记录")
+            st.success(f"找到 {len(response.data)} 条匹配记录")
         else:
             st.warning("没有找到匹配的订单。")
 
 # --- 标签页 2: 数据同步 ---
 with tab2:
     st.subheader("同步每日订单到数据库")
-    st.info("处理完发货后，请将最终的 CSV 文件上传至此处，以便后续查询。")
+    st.info("处理完发货后，将最终的 CSV 上传，即可永久保存至数据库。")
     uploaded_file = st.file_uploader("选择要导入的 CSV 文件", type="csv")
     
     if uploaded_file:
         try:
-            # 读取数据
-            df_upload = pd.read_csv(uploaded_file, dtype=str).fillna("")
-            st.write(f"📂 待上传数据: {len(df_upload)} 行")
+            # 自动识别日本 CSV 编码
+            content = uploaded_file.read()
+            detected_df = None
+            for enc in ['utf-8-sig', 'shift-jis', 'cp932']:
+                try:
+                    detected_df = pd.read_csv(io.BytesIO(content), encoding=enc, dtype=str)
+                    break
+                except: continue
             
-            if st.button("🚀 开始同步到数据库"):
-                # 将数据转换为 Supabase 需要的格式（字典列表）
-                data_to_insert = df_upload.to_dict(orient='records')
+            if detected_df is not None:
+                df_upload = detected_df.fillna("")
+                st.write(f"📂 待上传数据: {len(df_upload)} 行")
                 
-                # 分批上传（防止数据量太大报错）
-                batch_size = 100
-                for i in range(0, len(data_to_insert), batch_size):
-                    batch = data_to_insert[i:i + batch_size]
-                    supabase.table("orders").insert(batch).execute()
+                if st.button("🚀 开始同步到数据库"):
+                    data_to_insert = df_upload.to_dict(orient='records')
+                    
+                    # 使用进度条，让等待不再无聊
+                    progress_bar = st.progress(0)
+                    batch_size = 100
+                    total_batches = (len(data_to_insert) // batch_size) + 1
+                    
+                    for i in range(0, len(data_to_insert), batch_size):
+                        batch = data_to_insert[i:i + batch_size]
+                        supabase.table("orders").insert(batch).execute()
+                        progress_bar.progress(min((i + batch_size) / len(data_to_insert), 1.0))
+                    
+                    st.success(f"🎉 成功同步 {len(data_to_insert)} 条订单数据！")
+            else:
+                st.error("无法识别文件编码，请确保是标准的 CSV 格式。")
                 
-                st.success(f"🎉 成功同步 {len(data_to_insert)} 条订单数据！")
         except Exception as e:
             st.error(f"同步失败: {e}")
 
